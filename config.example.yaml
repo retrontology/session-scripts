@@ -1,0 +1,16 @@
+replay_source_dir: C:/Users/you/AppData/Local/SessionGame/Saved/Replays
+replay_destination_dir: D:/Session/kept-replays
+skipped_replay_dir: D:/Session/skipped-replays
+video_source_dir: C:/Users/you/Videos/SessionCaptures
+video_destination_dir: D:/Session/kept-videos
+keep_hotkey: ctrl+alt+k
+skip_hotkey: ctrl+alt+s
+replay_extensions:
+  - rep
+video_extensions:
+  - mp4
+  - mov
+  - mkv
+  - avi
+  - webm
+overwrite_existing: false
