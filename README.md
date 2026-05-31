@@ -48,3 +48,5 @@ On Windows, global hotkey libraries may require running the terminal as Administ
 - `replay_extensions`: replay file extensions to include, without the leading dot.
 - `video_extensions`: video file extensions to include, without the leading dot.
 - `overwrite_existing`: when `false`, the app stops an operation instead of replacing a file with the same destination name.
+- `notifications_enabled`: when `true`, hotkey actions show a small top-right overlay notification.
+- `notification_duration_ms`: how long each overlay notification stays visible.

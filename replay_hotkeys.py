@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import argparse
 import logging
+import queue
 import shutil
 import sys
 import threading
+import tkinter as tk
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterable
@@ -25,6 +27,8 @@ DEFAULT_CONFIG_TEMPLATE = {
     "replay_extensions": ["rep"],
     "video_extensions": ["mp4", "mov", "mkv", "avi", "webm"],
     "overwrite_existing": False,
+    "notifications_enabled": True,
+    "notification_duration_ms": 2500,
 }
 
 
@@ -40,12 +44,18 @@ class AppConfig:
     replay_extensions: tuple[str, ...]
     video_extensions: tuple[str, ...]
     overwrite_existing: bool
+    notifications_enabled: bool
+    notification_duration_ms: int
 
 
 class ReplayHotkeyApp:
     def __init__(self, config: AppConfig) -> None:
         self.config = config
         self._operation_lock = threading.Lock()
+        self._notifier = OverlayNotifier(
+            config.notifications_enabled,
+            config.notification_duration_ms,
+        )
 
     def handle_keep_hotkey(self) -> None:
         self._run_hotkey_operation("keep replay/video", self.keep_next_replay)
@@ -56,8 +66,9 @@ class ReplayHotkeyApp:
     def _run_hotkey_operation(self, operation_name: str, operation: Callable[[], None]) -> None:
         try:
             operation()
-        except Exception:
+        except Exception as error:
             logging.exception("Failed to %s", operation_name)
+            self._notifier.show(f"Failed to {operation_name}: {error}")
 
     def keep_next_replay(self) -> None:
         with self._operation_lock:
@@ -67,6 +78,7 @@ class ReplayHotkeyApp:
             )
             if replay is None:
                 logging.warning("No replay files found in %s", self.config.replay_source_dir)
+                self._notifier.show("No replay files found")
                 return
 
             moved_replay = move_file(
@@ -86,11 +98,13 @@ class ReplayHotkeyApp:
                     self.config.video_source_dir,
                     moved_replay.name,
                 )
+                self._notifier.show(f"Kept replay {moved_replay.name}; no video found")
                 return
 
             renamed_video = self.config.video_destination_dir / f"{moved_replay.stem}{video.suffix}"
             moved_video = move_file(video, renamed_video, self.config.overwrite_existing)
             logging.info("Moved video: %s -> %s", video, moved_video)
+            self._notifier.show(f"Kept {moved_replay.name} and {moved_video.name}")
 
     def skip_next_replay(self) -> None:
         with self._operation_lock:
@@ -100,6 +114,7 @@ class ReplayHotkeyApp:
             )
             if replay is None:
                 logging.warning("No replay files found in %s", self.config.replay_source_dir)
+                self._notifier.show("No replay files found")
                 return
 
             moved_replay = move_file(
@@ -108,8 +123,10 @@ class ReplayHotkeyApp:
                 self.config.overwrite_existing,
             )
             logging.info("Skipped replay: %s -> %s", replay, moved_replay)
+            self._notifier.show(f"Skipped {moved_replay.name}")
 
     def run(self) -> None:
+        self._notifier.start()
         keyboard.add_hotkey(self.config.keep_hotkey, self.handle_keep_hotkey)
         keyboard.add_hotkey(self.config.skip_hotkey, self.handle_skip_hotkey)
 
@@ -119,6 +136,72 @@ class ReplayHotkeyApp:
         logging.info("Press Ctrl+C in this window to quit.")
 
         keyboard.wait()
+
+
+class OverlayNotifier:
+    def __init__(self, enabled: bool, duration_ms: int) -> None:
+        self.enabled = enabled
+        self.duration_ms = duration_ms
+        self._messages: queue.Queue[str] = queue.Queue()
+        self._thread: threading.Thread | None = None
+
+    def start(self) -> None:
+        if not self.enabled or self._thread is not None:
+            return
+
+        self._thread = threading.Thread(target=self._run, name="overlay-notifier", daemon=True)
+        self._thread.start()
+
+    def show(self, message: str) -> None:
+        if not self.enabled:
+            return
+
+        self._messages.put(message)
+
+    def _run(self) -> None:
+        root = tk.Tk()
+        root.withdraw()
+        root.after(100, self._poll_messages, root)
+        root.mainloop()
+
+    def _poll_messages(self, root: tk.Tk) -> None:
+        while True:
+            try:
+                message = self._messages.get_nowait()
+            except queue.Empty:
+                break
+            self._show_window(root, message)
+
+        root.after(100, self._poll_messages, root)
+
+    def _show_window(self, root: tk.Tk, message: str) -> None:
+        window = tk.Toplevel(root)
+        window.overrideredirect(True)
+        window.attributes("-topmost", True)
+        window.attributes("-alpha", 0.92)
+        window.configure(bg="#202124")
+
+        label = tk.Label(
+            window,
+            text=message,
+            bg="#202124",
+            fg="#ffffff",
+            font=("Segoe UI", 13),
+            padx=20,
+            pady=12,
+            justify="left",
+        )
+        label.pack()
+
+        window.update_idletasks()
+        width = window.winfo_width()
+        height = window.winfo_height()
+        screen_width = window.winfo_screenwidth()
+        screen_height = window.winfo_screenheight()
+        x = screen_width - width - 32
+        y = screen_height - height - 64
+        window.geometry(f"{width}x{height}+{x}+{y}")
+        window.after(self.duration_ms, window.destroy)
 
 
 def normalize_extensions(extensions: Iterable[str]) -> tuple[str, ...]:
@@ -195,6 +278,8 @@ def load_config(config_path: Path) -> AppConfig:
         replay_extensions=normalize_extensions(raw_config["replay_extensions"]),
         video_extensions=normalize_extensions(raw_config["video_extensions"]),
         overwrite_existing=bool(raw_config.get("overwrite_existing", False)),
+        notifications_enabled=bool(raw_config.get("notifications_enabled", True)),
+        notification_duration_ms=int(raw_config.get("notification_duration_ms", 2500)),
     )
 
 

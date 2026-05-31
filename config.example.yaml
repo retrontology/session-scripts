@@ -14,3 +14,5 @@ video_extensions:
   - avi
   - webm
 overwrite_existing: false
+notifications_enabled: true
+notification_duration_ms: 2500
