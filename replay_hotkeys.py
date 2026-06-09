@@ -24,6 +24,7 @@ DEFAULT_CONFIG_TEMPLATE = {
     "video_destination_dir": "C:/path/to/kept/videos",
     "keep_hotkey": "ctrl+alt+k",
     "skip_hotkey": "ctrl+alt+s",
+    "preview_hotkey": "ctrl+alt+p",
     "replay_extensions": ["rep"],
     "video_extensions": ["mp4", "mov", "mkv", "avi", "webm"],
     "overwrite_existing": False,
@@ -41,6 +42,7 @@ class AppConfig:
     video_destination_dir: Path
     keep_hotkey: str
     skip_hotkey: str
+    preview_hotkey: str
     replay_extensions: tuple[str, ...]
     video_extensions: tuple[str, ...]
     overwrite_existing: bool
@@ -63,6 +65,9 @@ class ReplayHotkeyApp:
     def handle_skip_hotkey(self) -> None:
         self._run_hotkey_operation("skip replay", self.skip_next_replay)
 
+    def handle_preview_hotkey(self) -> None:
+        self._run_hotkey_operation("preview next replay", self.preview_next_replay)
+
     def _run_hotkey_operation(self, operation_name: str, operation: Callable[[], None]) -> None:
         try:
             operation()
@@ -81,25 +86,25 @@ class ReplayHotkeyApp:
                 self._notifier.show("No replay files found")
                 return
 
-            moved_replay = move_file(
-                replay,
-                self.config.replay_destination_dir / replay.name,
-                self.config.overwrite_existing,
-            )
-            logging.info("Moved replay: %s -> %s", replay, moved_replay)
-
             video = get_newest_video(
                 self.config.video_source_dir,
                 self.config.video_extensions,
             )
             if video is None:
                 logging.warning(
-                    "No video files found in %s after moving replay %s",
+                    "No video files found in %s. Replay was not moved: %s",
                     self.config.video_source_dir,
-                    moved_replay.name,
+                    replay.name,
                 )
-                self._notifier.show(f"Kept replay {moved_replay.name}; no video found")
+                self._notifier.show(f"No video found; {replay.name} was not moved")
                 return
+
+            moved_replay = move_file(
+                replay,
+                self.config.replay_destination_dir / replay.name,
+                self.config.overwrite_existing,
+            )
+            logging.info("Moved replay: %s -> %s", replay, moved_replay)
 
             renamed_video = self.config.video_destination_dir / f"{moved_replay.stem}{video.suffix}"
             moved_video = move_file(video, renamed_video, self.config.overwrite_existing)
@@ -125,14 +130,30 @@ class ReplayHotkeyApp:
             logging.info("Skipped replay: %s -> %s", replay, moved_replay)
             self._notifier.show(f"Skipped {moved_replay.name}")
 
+    def preview_next_replay(self) -> None:
+        with self._operation_lock:
+            replay = get_top_replay(
+                self.config.replay_source_dir,
+                self.config.replay_extensions,
+            )
+            if replay is None:
+                logging.warning("No replay files found in %s", self.config.replay_source_dir)
+                self._notifier.show("No replay files found")
+                return
+
+            logging.info("Next targeted replay: %s", replay)
+            self._notifier.show(f"Next replay: {replay.name}")
+
     def run(self) -> None:
         self._notifier.start()
         keyboard.add_hotkey(self.config.keep_hotkey, self.handle_keep_hotkey)
         keyboard.add_hotkey(self.config.skip_hotkey, self.handle_skip_hotkey)
+        keyboard.add_hotkey(self.config.preview_hotkey, self.handle_preview_hotkey)
 
         logging.info("Listening for hotkeys.")
         logging.info("Keep replay/video: %s", self.config.keep_hotkey)
         logging.info("Skip replay: %s", self.config.skip_hotkey)
+        logging.info("Preview next replay: %s", self.config.preview_hotkey)
         logging.info("Press Ctrl+C in this window to quit.")
 
         keyboard.wait()
@@ -275,6 +296,7 @@ def load_config(config_path: Path) -> AppConfig:
         video_destination_dir=Path(raw_config["video_destination_dir"]).expanduser(),
         keep_hotkey=raw_config["keep_hotkey"],
         skip_hotkey=raw_config["skip_hotkey"],
+        preview_hotkey=raw_config.get("preview_hotkey", "ctrl+alt+p"),
         replay_extensions=normalize_extensions(raw_config["replay_extensions"]),
         video_extensions=normalize_extensions(raw_config["video_extensions"]),
         overwrite_existing=bool(raw_config.get("overwrite_existing", False)),

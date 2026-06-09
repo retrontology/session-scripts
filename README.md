@@ -5,7 +5,7 @@ A small Windows Python app for sorting Session: Skate Sim replay files and match
 ## What It Does
 
 - `keep_hotkey`: moves the first replay file from `replay_source_dir`, sorted by filename, into `replay_destination_dir`.
-- After keeping a replay, it finds the newest video file in `video_source_dir`, renames the video to the replay basename while keeping the video extension, and moves it into `video_destination_dir`.
+- Before keeping a replay, it confirms a video exists in `video_source_dir`. If one exists, it moves the replay, renames the newest video to the replay basename while keeping the video extension, and moves it into `video_destination_dir`.
 - `skip_hotkey`: moves the first replay file from `replay_source_dir`, sorted by filename, into `skipped_replay_dir`.
 
 Example: if the kept replay is `00042.replay` and the newest video is `SessionClip.mp4`, the moved video becomes `00042.mp4`.
@@ -45,8 +45,9 @@ On Windows, global hotkey libraries may require running the terminal as Administ
 - `video_destination_dir`: where renamed kept videos are moved.
 - `keep_hotkey`: hotkey that keeps the next replay and pairs it with the newest video.
 - `skip_hotkey`: hotkey that skips the next replay.
+- `preview_hotkey`: hotkey that shows which replay would be kept or skipped next.
 - `replay_extensions`: replay file extensions to include, without the leading dot.
 - `video_extensions`: video file extensions to include, without the leading dot.
 - `overwrite_existing`: when `false`, the app stops an operation instead of replacing a file with the same destination name.
-- `notifications_enabled`: when `true`, hotkey actions show a small top-right overlay notification.
+- `notifications_enabled`: when `true`, hotkey actions show a small bottom-right overlay notification.
 - `notification_duration_ms`: how long each overlay notification stays visible.

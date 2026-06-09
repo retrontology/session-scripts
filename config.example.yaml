@@ -5,6 +5,7 @@ video_source_dir: C:/Users/you/Videos/SessionCaptures
 video_destination_dir: D:/Session/kept-videos
 keep_hotkey: ctrl+alt+k
 skip_hotkey: ctrl+alt+s
+preview_hotkey: ctrl+alt+p
 replay_extensions:
   - rep
 video_extensions:
