@@ -109,7 +109,7 @@ class ReplayHotkeyApp:
             renamed_video = self.config.video_destination_dir / f"{moved_replay.stem}{video.suffix}"
             moved_video = move_file(video, renamed_video, self.config.overwrite_existing)
             logging.info("Moved video: %s -> %s", video, moved_video)
-            self._notifier.show(f"Kept {moved_replay.name} and {moved_video.name}")
+            self._notifier.show(f"Kept {moved_replay.stem}")
 
     def skip_next_replay(self) -> None:
         with self._operation_lock:
